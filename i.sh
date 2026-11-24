@@ -8,7 +8,8 @@
 
 main() {
   set -e
-  local URL="https://github.com/virgilidelfuoco/fiocco/releases/latest/download/Brina.zip"
+  # l'app sta nel ramo "app" di questo repository, in parti sotto i 100 MB (il limite di GitHub per un file)
+  local BASE="https://raw.githubusercontent.com/virgilidelfuoco/fiocco/app"
   local B=$'\033[1m' N=$'\033[0m'
   echo
   echo "${B}❄️  Brina${N} — il meteo animato sullo sfondo del Mac"
@@ -31,13 +32,29 @@ main() {
   T="$(mktemp -d)"
   trap 'rm -rf "$T"' EXIT
 
-  echo "Scarico Brina (circa 150 MB)…"
-  if ! curl -fL --progress-bar --retry 3 -o "$T/Brina.zip" "$URL"; then
-    echo "Download non riuscito: controlla la connessione e rilancia il comando."
+  local v parts want got p
+  v="$(curl -fsSL --retry 3 "$BASE/versione.txt" 2>/dev/null | head -1 || true)"
+  parts="$(curl -fsSL --retry 3 "$BASE/parti.txt" 2>/dev/null || true)"
+  want="$(curl -fsSL --retry 3 "$BASE/Brina.zip.sha256" 2>/dev/null | head -1 || true)"
+  if [ -z "$parts" ] || [ -z "$want" ]; then
+    echo "Non riesco a raggiungere GitHub: controlla la connessione e rilancia il comando."
     return 1
   fi
+  echo "Scarico Brina ${v} (circa 150 MB)…"
+  : > "$T/Brina.zip"
+  for p in $parts; do
+    if ! curl -fL --progress-bar --retry 3 "$BASE/$p" >> "$T/Brina.zip"; then
+      echo "Download non riuscito: controlla la connessione e rilancia il comando."
+      return 1
+    fi
+  done
 
   echo "Controllo il file…"
+  got="$(shasum -a 256 "$T/Brina.zip" | cut -d' ' -f1)"
+  if [ "$got" != "$want" ]; then
+    echo "Il file scaricato non è completo (forse GitHub sta ancora aggiornando): riprova tra qualche minuto."
+    return 1
+  fi
   if ! ditto -x -k "$T/Brina.zip" "$T/x" 2>/dev/null || [ ! -d "$T/x/Brina.app" ]; then
     echo "Il file scaricato è rovinato: rilancia il comando."
     return 1
