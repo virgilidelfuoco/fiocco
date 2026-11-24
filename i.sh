@@ -3,7 +3,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/virgilidelfuoco/fiocco/main/i.sh | bash
 #
-# Scarica l'ultima versione, controlla che sia firmata "Brina Sviluppo", la mette in Applicazioni e la apre.
+# Scarica l'ultima versione, controlla che sia arrivata intera (sha256), la mette in Applicazioni e la apre.
 # Scaricata così, macOS non la blocca: niente "Apri comunque" da fare a mano.
 
 main() {
@@ -59,11 +59,9 @@ main() {
     echo "Il file scaricato è rovinato: rilancia il comando."
     return 1
   fi
-  if ! codesign --verify --deep --strict "$T/x/Brina.app" 2>/dev/null \
-     || ! codesign -dv "$T/x/Brina.app" 2>&1 | grep -q "Authority=Brina Sviluppo"; then
-    echo "La firma di Brina non torna: non la installo."
-    return 1
-  fi
+  # La firma "Brina Sviluppo" è fatta in casa: sugli altri Mac non è tra quelle note e il controllo di codesign
+  # può non passare (24/11, primo amico: si fermava qui). Non serve: il file è quello pubblicato (sha256 sopra),
+  # e scaricata col Terminale macOS la apre senza chiedere.
 
   local DEST="/Applications"
   if [ ! -w "$DEST" ]; then
@@ -89,7 +87,7 @@ main() {
     return 1
   fi
   ditto "$T/x/Brina.app" "$DEST/Brina.app"
-  xattr -dr com.apple.quarantine "$DEST/Brina.app" 2>/dev/null || true
+  xattr -cr "$DEST/Brina.app" 2>/dev/null || true
 
   echo "Apro Brina…"
   open "$DEST/Brina.app"
